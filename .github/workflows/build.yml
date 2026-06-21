@@ -1,64 +1,76 @@
-name: Build Firmware
+name: Custom Build
 
 on:
-  push:
-    branches:
-      - "*"
   workflow_dispatch:
+    inputs:
+      device:
+        description: 'Select router device'
+        required: true
+        default: 'CR660x'
+        type: choice
+        options:
+          - 'CR660x'
+      toolchain:
+        description: 'Select compilation toolchain'
+        required: true
+        default: 'mipsel-linux-musl'
+        type: choice
+        options:
+          - 'mipsel-linux-musl'
+      plugin_json:
+        description: 'Plugin JSON'
+        required: true
+        default: '{"shadowsocks":"n","v2ray":"n","xray":"n","trojan":"n","ssobfs":"n","smartdns":"n","vlmcsd":"y","ttyd":"y","adbyby":"y"}'
+      custom_json:
+        description: 'Customization JSON'
+        required: true
+        default: '{"lanip":"192.168.123.1"}'
+      release:
+        description: 'Upload to GitHub Release'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: write
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [K2P, K2P-USB]
-        toolchain: [mipsel-linux-musl]
-
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@main
-        with:
-          fetch-depth: 1
-      - uses: hendrikmuhs/ccache-action@main
-        with:
-          key: ${{ matrix.target }}-${{ matrix.toolchain }}
+    - name: Checkout Repository
+      uses: actions/checkout@v3
 
-      - uses: actions/setup-go@main
-        with:
-          go-version: '1.24.x'
-          check-latest: true
-          cache: false
+    - name: Prepare Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gawk pkg-config gettext automake autoconf libtool libtool-bin gperf autopoint bison flex zlib1g-dev libgmp3-dev libmpfr-dev libmpc-dev libssl-dev lm-sensors libncurses5-dev python3-setuptools python3-pip python3-yaml upx-ucl p7zip-full curl
 
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            bison flex gperf help2man libtool-bin texinfo python3-docutils autopoint gettext ccache \
-            autoconf automake liblzma-dev libltdl-dev liblzo2-dev
-          echo "BUILD_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)" >> $GITHUB_ENV
+    - name: Pre-download LZMA to bypass 404 error
+      run: |
+        mkdir -p trunk/download
+        curl -L -o trunk/download/lzma2409.7z https://proxy.mianao.info/https://github.com/caiqingjie0116-dev/padavan/releases/download/deps/lzma2409.7z || curl -L -o trunk/download/lzma2409.7z https://sources.openwrt.org/lzma2409.7z
 
-      - name: Build Firmware
-        run: |
-          make ${{ matrix.target }} TOOLCHAIN=${{ matrix.toolchain }}
+    - name: Download, Compress and Inject EasyTier
+      run: cd trunk/user/shared && mkdir -p easytier_tmp && cd easytier_tmp && curl -L -o easytier.zip https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-linux-mipsel-v2.6.4.zip && unzip easytier.zip && upx --best --lzma easytier-core && upx --best --lzma easytier-cli && mkdir -p ../../storage/rom/etc_ro/bin && cp easytier-core ../../storage/rom/etc_ro/bin/easytier-core && cp easytier-cli ../../storage/rom/etc_ro/bin/easytier-cli && chmod +x ../../storage/rom/etc_ro/bin/easytier-core && chmod +x ../../storage/rom/etc_ro/bin/easytier-cli && cd .. && rm -rf easytier_tmp
 
-      - uses: actions/upload-artifact@main
-        with:
-          name: ${{ matrix.target }}-${{ matrix.toolchain }}-${{ env.BUILD_DATE }}
-          path: trunk/images/*.trx
+    - name: Apply Plugin and Custom JSON Configurations
+      run: |
+        python3 .github/scripts/configure.py '${{ github.event.inputs.plugin_json }}' '${{ github.event.inputs.custom_json }}' '${{ github.event.inputs.device }}'
 
-      - uses: ncipollo/release-action@main
-        with:
-          commit: ${{ github.sha }}
-          tag: ${{ env.BUILD_DATE }}
-          artifacts: trunk/images/*.trx
-          allowUpdates: true
-          omitBodyDuringUpdate: true
+    - name: Run Build Script
+      run: |
+        cd trunk
+        ./build_firmware.sh ${{ github.event.inputs.device }} ${{ github.event.inputs.toolchain }}
 
-      - uses: Mattraks/delete-workflow-runs@main
-        with:
-          retain_days: 0
-          keep_minimum_runs: 1
+    - name: Organize Firmware Files
+      run: |
+        mkdir -p output
+        find trunk/images/ -name "*.trx" -exec cp {} output/ \;
+        echo "BUILD_TIME=$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
+    - name: Upload Images to Release
+      if: ${{ github.event.inputs.release == 'true' }}
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: Padavan-CR660x-${{ env.BUILD_TIME }}
+        files: output/*.trx
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

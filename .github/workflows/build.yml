@@ -48,8 +48,8 @@ jobs:
         mkdir -p trunk/download
         curl -L -o trunk/download/lzma2409.7z https://proxy.mianao.info/https://github.com/caiqingjie0116-dev/padavan/releases/download/deps/lzma2409.7z || curl -L -o trunk/download/lzma2409.7z https://sources.openwrt.org/lzma2409.7z
 
-    - name: Download, Compress and Inject EasyTier
-      run: cd trunk/user/shared && mkdir -p easytier_tmp && cd easytier_tmp && curl -L -o easytier.zip https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-linux-mipsel-v2.6.4.zip && unzip easytier.zip && cd easytier-linux-mipsel && upx --best --lzma easytier-core && upx --best --lzma easytier-cli && mkdir -p ../../../../storage/rom/etc_ro/bin && cp easytier-core ../../../../storage/rom/etc_ro/bin/easytier-core && cp easytier-cli ../../../../storage/rom/etc_ro/bin/easytier-cli && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-core && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-cli && cd ../.. && rm -rf easytier_tmp
+    - name: Download and Inject EasyTier
+      run: cd trunk/user/shared && mkdir -p easytier_tmp && cd easytier_tmp && curl -L -o easytier.zip https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-linux-mipsel-v2.6.4.zip && unzip easytier.zip && cd easytier-linux-mipsel && mkdir -p ../../../../storage/rom/etc_ro/bin && cp easytier-core ../../../../storage/rom/etc_ro/bin/easytier-core && cp easytier-cli ../../../../storage/rom/etc_ro/bin/easytier-cli && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-core && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-cli && cd ../.. && rm -rf easytier_tmp
 
     - name: Apply Plugin and Custom JSON Configurations
       run: |

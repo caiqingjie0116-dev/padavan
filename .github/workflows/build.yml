@@ -17,14 +17,6 @@ on:
         type: choice
         options:
           - 'mipsel-linux-musl'
-      plugin_json:
-        description: 'Plugin JSON'
-        required: true
-        default: '{"shadowsocks":"n","v2ray":"n","xray":"n","trojan":"n","ssobfs":"n","smartdns":"n","vlmcsd":"y","ttyd":"y","adbyby":"y"}'
-      custom_json:
-        description: 'Customization JSON'
-        required: true
-        default: '{"lanip":"192.168.123.1"}'
       release:
         description: 'Upload to GitHub Release'
         required: true
@@ -50,10 +42,6 @@ jobs:
 
     - name: Download and Inject EasyTier
       run: cd trunk/user/shared && mkdir -p easytier_tmp && cd easytier_tmp && curl -L -o easytier.zip https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/easytier-linux-mipsel-v2.6.4.zip && unzip easytier.zip && cd easytier-linux-mipsel && mkdir -p ../../../../storage/rom/etc_ro/bin && cp easytier-core ../../../../storage/rom/etc_ro/bin/easytier-core && cp easytier-cli ../../../../storage/rom/etc_ro/bin/easytier-cli && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-core && chmod +x ../../../../storage/rom/etc_ro/bin/easytier-cli && cd ../.. && rm -rf easytier_tmp
-
-    - name: Apply Plugin and Custom JSON Configurations
-      run: |
-        python3 .github/scripts/configure.py '${{ github.event.inputs.plugin_json }}' '${{ github.event.inputs.custom_json }}' '${{ github.event.inputs.device }}'
 
     - name: Run Build Script
       run: |
